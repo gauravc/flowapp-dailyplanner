@@ -1,4 +1,15 @@
 {
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "functions": {
+    "app/api/internal/rollover/route.ts": {
+      "maxDuration": 60
+    }
+  },
+  "env": {
+    "PRISMA_GENERATE_DATAPROXY": "true"
+  },
   "crons": [
     {
       "path": "/api/internal/rollover",

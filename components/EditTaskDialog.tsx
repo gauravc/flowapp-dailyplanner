@@ -177,7 +177,7 @@ export function EditTaskDialog({ task, open, onOpenChange, onUpdate, onDelete }:
         <DialogHeader>
           <DialogTitle>Edit Task</DialogTitle>
           <DialogDescription>
-            Make changes to your task here. Click save when you're done.
+            Make changes to your task here. Click save when you&apos;re done.
           </DialogDescription>
         </DialogHeader>
         
