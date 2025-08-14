@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
 import { db } from '@/lib/db'
-
-// Mock user ID for demo purposes
-const MOCK_USER_ID = 'user_1'
 
 export async function GET(request: NextRequest) {
   try {
+    const session = await getServerSession()
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     const query = searchParams.get('q')
 
@@ -20,7 +27,7 @@ export async function GET(request: NextRequest) {
     // Search tasks
     const tasks = await db.task.findMany({
       where: {
-        userId: MOCK_USER_ID,
+        userId: session.user.id,
         OR: isTagSearch ? [
           {
             tags: {
@@ -52,7 +59,7 @@ export async function GET(request: NextRequest) {
     // Search notes
     const notes = await db.dayNote.findMany({
       where: {
-        userId: MOCK_USER_ID,
+        userId: session.user.id,
         contentText: { contains: query.trim() },
       },
       orderBy: {

@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { parseDate } from '@/lib/dates'
 
-// Mock user ID for demo purposes
-const MOCK_USER_ID = 'user_1'
-
 export async function GET(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions)
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     const start = searchParams.get('start')
     const end = searchParams.get('end')
@@ -24,7 +32,7 @@ export async function GET(request: NextRequest) {
     // Get tasks for the date range
     const tasks = await db.task.findMany({
       where: {
-        userId: MOCK_USER_ID,
+        userId: session.user.id,
         scheduledFor: {
           gte: startDate,
           lte: endDate,
@@ -46,7 +54,7 @@ export async function GET(request: NextRequest) {
     // Get notes for the date range
     const notes = await db.dayNote.findMany({
       where: {
-        userId: MOCK_USER_ID,
+        userId: session.user.id,
         date: {
           gte: startDate,
           lte: endDate,

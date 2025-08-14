@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { parseDate } from '@/lib/dates'
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions)
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
     const body = await request.json()
     const { 
       title, 
@@ -11,16 +22,17 @@ export async function POST(request: NextRequest) {
       scheduledFor, 
       dueDate, 
       priority, 
-      tags, 
-      userId 
+      tags
     } = body
 
-    if (!title || !scheduledFor || !userId) {
+    if (!title || !scheduledFor) {
       return NextResponse.json(
-        { error: 'Title, scheduledFor, and userId are required' },
+        { error: 'Title and scheduledFor are required' },
         { status: 400 }
       )
     }
+
+    const userId = session.user.id
 
     // Get the highest position index for this day
     const maxPosition = await db.task.aggregate({

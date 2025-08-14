@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { parseDate } from '@/lib/dates'
 
@@ -7,6 +9,15 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const session = await getServerSession(authOptions)
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
     const body = await request.json()
     const taskId = params.id
 
@@ -36,6 +47,14 @@ export async function PATCH(
       )
     }
 
+    // Check if user owns this task
+    if (existingTask.userId !== session.user.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 403 }
+      )
+    }
+
     // Prepare update data
     const updateData: any = {}
     
@@ -46,9 +65,39 @@ export async function PATCH(
     if (body.positionIndex !== undefined) updateData.positionIndex = body.positionIndex
     
     if (body.scheduledFor !== undefined) {
-      updateData.scheduledFor = typeof body.scheduledFor === 'string' 
-        ? parseDate(body.scheduledFor) 
-        : body.scheduledFor
+      console.log('Processing scheduledFor:', body.scheduledFor)
+      
+      // When sent via fetch, Date objects become strings, so we need to handle both cases
+      if (body.scheduledFor && typeof body.scheduledFor === 'string') {
+        // Handle both ISO strings and YYYY-MM-DD format
+        let parsedDate: Date
+        
+        if (body.scheduledFor.includes('T')) {
+          // ISO string format (e.g., '2025-08-14T07:00:00.000Z')
+          console.log('Detected ISO string format, parsing with new Date()')
+          parsedDate = new Date(body.scheduledFor)
+          console.log('Parsed result:', parsedDate, 'Valid:', !isNaN(parsedDate.getTime()))
+        } else {
+          // YYYY-MM-DD format
+          console.log('Detected YYYY-MM-DD format, parsing with parseDate()')
+          parsedDate = parseDate(body.scheduledFor)
+          console.log('Parsed result:', parsedDate, 'Valid:', !isNaN(parsedDate.getTime()))
+        }
+        
+        if (!isNaN(parsedDate.getTime())) {
+          console.log('Successfully parsed scheduledFor to Date:', parsedDate)
+          updateData.scheduledFor = parsedDate
+        } else {
+          console.log('Failed to parse scheduledFor to Date, setting to null')
+          updateData.scheduledFor = null
+        }
+      } else if (body.scheduledFor && body.scheduledFor instanceof Date && !isNaN(body.scheduledFor.getTime())) {
+        console.log('Using scheduledFor Date object directly')
+        updateData.scheduledFor = body.scheduledFor
+      } else {
+        console.log('Setting scheduledFor to null')
+        updateData.scheduledFor = null
+      }
     }
     
     if (body.dueDate !== undefined) {
@@ -56,9 +105,9 @@ export async function PATCH(
       
       // When sent via fetch, Date objects become strings, so we need to handle both cases
       if (body.dueDate && typeof body.dueDate === 'string') {
-        // Try to parse the string to a Date
-        // HTML date inputs return YYYY-MM-DD format, which should work with Date constructor
-        const parsedDate = new Date(body.dueDate + 'T00:00:00.000Z')
+        // Parse the date string and create a local date without timezone conversion
+        const [year, month, day] = body.dueDate.split('-').map(Number)
+        const parsedDate = new Date(year, month - 1, day)
         if (!isNaN(parsedDate.getTime())) {
           console.log('Successfully parsed string to Date:', parsedDate)
           updateData.dueDate = parsedDate
@@ -79,8 +128,13 @@ export async function PATCH(
 
     // Final validation: ensure no invalid dates are sent to Prisma
     if (updateData.dueDate && updateData.dueDate instanceof Date && isNaN(updateData.dueDate.getTime())) {
-      console.log('Invalid date detected, setting to null')
+      console.log('Invalid dueDate detected, setting to null')
       updateData.dueDate = null
+    }
+    
+    if (updateData.scheduledFor && updateData.scheduledFor instanceof Date && isNaN(updateData.scheduledFor.getTime())) {
+      console.log('Invalid scheduledFor detected, setting to null')
+      updateData.scheduledFor = null
     }
 
     // Update the task
@@ -124,6 +178,15 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const session = await getServerSession(authOptions)
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
     const taskId = params.id
 
     // Check if task exists
@@ -135,6 +198,14 @@ export async function DELETE(
       return NextResponse.json(
         { error: 'Task not found' },
         { status: 404 }
+      )
+    }
+
+    // Check if user owns this task
+    if (existingTask.userId !== session.user.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 403 }
       )
     }
 

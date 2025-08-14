@@ -13,7 +13,9 @@ export function formatDayName(date: Date): string {
 }
 
 export function getToday(): Date {
-  return startOfDay(new Date())
+  const now = new Date()
+  // Create a new date with local midnight to avoid timezone issues
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate())
 }
 
 export function getTodayString(): string {
@@ -31,7 +33,9 @@ export function getWeekDays(centerDate: Date = getToday()): Date[] {
 }
 
 export function parseDate(dateString: string): Date {
-  return parseISO(dateString + 'T00:00:00.000Z')
+  // Parse the date string and create a local date without timezone conversion
+  const [year, month, day] = dateString.split('-').map(Number)
+  return new Date(year, month - 1, day)
 }
 
 export function isDateToday(date: Date): boolean {

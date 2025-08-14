@@ -8,6 +8,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -27,7 +28,7 @@ interface EditTaskDialogProps {
   task: Task
   open: boolean
   onOpenChange: (open: boolean) => void
-  onUpdate: (taskId: string, updates: Partial<Task>) => void
+  onUpdate: (taskId: string, updates: any) => void
   onDelete: (taskId: string) => void
 }
 
@@ -37,9 +38,23 @@ export function EditTaskDialog({ task, open, onOpenChange, onUpdate, onDelete }:
   const [title, setTitle] = useState(task.title)
   const [description, setDescription] = useState(task.description || '')
   const [priority, setPriority] = useState(task.priority || '')
-  const [dueDate, setDueDate] = useState(
-    task.dueDate ? format(task.dueDate, 'yyyy-MM-dd') : ''
+  
+  // Handle scheduledFor - convert to Date if it's a string
+  const initialScheduledFor = task.scheduledFor instanceof Date 
+    ? task.scheduledFor 
+    : new Date(task.scheduledFor)
+  const [scheduledFor, setScheduledFor] = useState(
+    format(initialScheduledFor, 'yyyy-MM-dd')
   )
+  
+  // Handle dueDate - convert to Date if it's a string
+  const initialDueDate = task.dueDate instanceof Date 
+    ? task.dueDate 
+    : (task.dueDate ? new Date(task.dueDate) : null)
+  const [dueDate, setDueDate] = useState(
+    initialDueDate ? format(initialDueDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')
+  )
+  
   const [tags, setTags] = useState(
     task.tags.map(t => t.tag.name).join(', ')
   )
@@ -49,7 +64,19 @@ export function EditTaskDialog({ task, open, onOpenChange, onUpdate, onDelete }:
       setTitle(task.title)
       setDescription(task.description || '')
       setPriority(task.priority || 'none')
-      setDueDate(task.dueDate ? format(task.dueDate, 'yyyy-MM-dd') : '')
+      
+      // Handle scheduledFor - convert to Date if it's a string
+      const scheduledForDate = task.scheduledFor instanceof Date 
+        ? task.scheduledFor 
+        : new Date(task.scheduledFor)
+      setScheduledFor(format(scheduledForDate, 'yyyy-MM-dd'))
+      
+      // Handle dueDate - convert to Date if it's a string
+      const dueDateValue = task.dueDate instanceof Date 
+        ? task.dueDate 
+        : (task.dueDate ? new Date(task.dueDate) : null)
+      setDueDate(dueDateValue ? format(dueDateValue, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'))
+      
       setTags(task.tags.map(t => t.tag.name).join(', '))
     }
   }, [task, open])
@@ -64,7 +91,9 @@ export function EditTaskDialog({ task, open, onOpenChange, onUpdate, onDelete }:
     let dueDateValue: Date | null = null
     
     if (dueDate && dueDate.trim()) {
-      const parsedDate = new Date(dueDate + 'T00:00:00.000Z')
+      // Parse the date string and create a local date without timezone conversion
+      const [year, month, day] = dueDate.split('-').map(Number)
+      const parsedDate = new Date(year, month - 1, day)
       console.log('Parsing due date:', { dueDate, parsedDate, isValid: !isNaN(parsedDate.getTime()) })
       if (!isNaN(parsedDate.getTime())) {
         dueDateValue = parsedDate
@@ -74,14 +103,44 @@ export function EditTaskDialog({ task, open, onOpenChange, onUpdate, onDelete }:
       }
     }
 
-    const updates: Partial<Task> = {
+    // Parse scheduledFor date
+    let scheduledForValue: Date | null = null
+    if (scheduledFor && scheduledFor.trim()) {
+      // Parse the date string and create a local date without timezone conversion
+      const [year, month, day] = scheduledFor.split('-').map(Number)
+      const parsedScheduledDate = new Date(year, month - 1, day)
+      if (!isNaN(parsedScheduledDate.getTime())) {
+        scheduledForValue = parsedScheduledDate
+      } else {
+        alert('Please enter a valid scheduled date')
+        return
+      }
+    }
+    
+    const updates: any = {
       title: title.trim(),
       description: description.trim() || null,
       priority: priority === 'none' ? null : priority,
       dueDate: dueDateValue,
     }
+    
+    // Only include scheduledFor if it's actually different
+    if (scheduledForValue) {
+      // Convert task.scheduledFor to a Date if it's a string, then compare
+      const currentScheduledFor = task.scheduledFor instanceof Date 
+        ? task.scheduledFor 
+        : new Date(task.scheduledFor)
+      
+      if (scheduledForValue.getTime() !== currentScheduledFor.getTime()) {
+        updates.scheduledFor = scheduledForValue
+      }
+    }
 
     console.log('Sending updates:', updates)
+    console.log('=== EDIT TASK DEBUG ===')
+    console.log('Original task scheduledFor:', task.scheduledFor)
+    console.log('New scheduledFor value:', scheduledForValue)
+    console.log('Updates object:', updates)
     onUpdate(task.id, updates)
     onOpenChange(false)
   }
@@ -104,6 +163,9 @@ export function EditTaskDialog({ task, open, onOpenChange, onUpdate, onDelete }:
       <DialogContent className="sm:max-w-[425px]" onKeyDown={handleKeyDown}>
         <DialogHeader>
           <DialogTitle>Edit Task</DialogTitle>
+          <DialogDescription>
+            Make changes to your task here. Click save when you're done.
+          </DialogDescription>
         </DialogHeader>
         
         <div className="grid gap-4 py-4">
@@ -155,6 +217,16 @@ export function EditTaskDialog({ task, open, onOpenChange, onUpdate, onDelete }:
                 min={new Date().toISOString().split('T')[0]}
               />
             </div>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="scheduledFor">Scheduled For</Label>
+            <Input
+              id="scheduledFor"
+              type="date"
+              value={scheduledFor}
+              onChange={(e) => setScheduledFor(e.target.value)}
+            />
           </div>
 
           <div className="grid gap-2">

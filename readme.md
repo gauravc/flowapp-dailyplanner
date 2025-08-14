@@ -4,6 +4,8 @@ A TeuxDeux-style daily planner with Franklin-Covey task rollover, built with Nex
 
 ## Features
 
+- 🔐 **User Authentication**: Secure signup/login with NextAuth.js
+- 👤 **Personal Workspace**: Each user has their own private tasks and notes
 - 🗓️ **Horizontal Day Columns**: TeuxDeux-inspired weekly view with Today centered
 - ✅ **Task Management**: Create, complete, edit, and delete tasks with drag & drop
 - 🔄 **Auto-Rollover**: Incomplete tasks automatically move to the next day at local midnight
@@ -18,7 +20,8 @@ A TeuxDeux-style daily planner with Franklin-Covey task rollover, built with Nex
 
 - **Frontend**: Next.js 14 (App Router), React 18, TypeScript
 - **Styling**: Tailwind CSS, shadcn/ui components
-- **Database**: SQLite with Prisma ORM
+- **Authentication**: NextAuth.js with JWT sessions
+- **Database**: SQLite (dev) / PostgreSQL (prod) with Prisma ORM
 - **Drag & Drop**: @dnd-kit
 - **Date Handling**: date-fns
 - **Deployment**: Vercel (with Cron jobs for rollover)
@@ -29,6 +32,15 @@ A TeuxDeux-style daily planner with Franklin-Covey task rollover, built with Nex
 
 - Node.js 18+ and npm
 - Git
+
+### Authentication Setup
+
+The app now includes user authentication. Users can:
+- Create new accounts with email/password
+- Sign in to access their personal workspace
+- All data is isolated per user
+- Secure password hashing with bcrypt
+- JWT-based sessions
 
 ### Installation
 
@@ -43,12 +55,23 @@ A TeuxDeux-style daily planner with Franklin-Covey task rollover, built with Nex
    npm install
    ```
 
-3. **Set up the database**
+3. **Set up environment variables**
+   ```bash
+   # Copy example environment file
+   cp .env.example .env.local
+   
+   # Edit .env.local and add your secrets
+   NEXTAUTH_URL=http://localhost:3000
+   NEXTAUTH_SECRET=your-secret-key-here
+   DATABASE_URL="file:./dev.db"
+   ```
+
+4. **Set up the database**
    ```bash
    # Initialize the database
    npx prisma db push
    
-   # Seed with sample data
+   # Seed with sample data (optional for production)
    npm run db:seed
    ```
 
@@ -136,24 +159,36 @@ The app implements automatic task rollover:
 
 ## Deployment
 
-### Vercel Deployment
+### Local Development
 
-1. **Push to GitHub/GitLab**
+For local development, the app uses SQLite and includes sample data:
 
-2. **Connect to Vercel**
-   - Import your repository
-   - Vercel will auto-detect Next.js
+```bash
+npm run dev          # Start development server
+npm run db:seed      # Seed with sample data
+npm run db:studio    # Open Prisma Studio
+```
 
-3. **Environment Setup**
-   - Database will be created automatically with Prisma
-   - Vercel Cron will handle rollover jobs
+### Production Deployment
 
-4. **Post-deployment**
-   ```bash
-   # SSH into Vercel or use Vercel CLI to seed
-   vercel env pull .env.local
-   npx prisma db seed
-   ```
+For production deployment on Vercel:
+
+1. **Environment Variables**
+   - Set `NEXTAUTH_URL` to your production domain
+   - Generate a strong `NEXTAUTH_SECRET`
+   - Use PostgreSQL database (recommended)
+
+2. **Database Setup**
+   - Use Vercel Postgres or external PostgreSQL
+   - Run `npx prisma db push` after deployment
+   - No sample data in production
+
+3. **Security**
+   - All user data is properly isolated
+   - Passwords are securely hashed
+   - JWT sessions with proper expiration
+
+See [PRODUCTION.md](./PRODUCTION.md) for detailed production deployment instructions.
 
 ### Vercel Cron Configuration
 
