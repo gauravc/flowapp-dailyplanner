@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id       String @id @default(cuid())
+  email    String @unique
+  timezone String @default("UTC")
+  
+  tasks    Task[]
+  dayNotes DayNote[]
+  tags     Tag[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Task {
+  id            String   @id @default(cuid())
+  userId        String
+  title         String
+  description   String?
+  status        String   @default("open") // "open" | "done"
+  priority      String?  // "A" | "B" | "C"
+  scheduledFor  DateTime
+  dueDate       DateTime?
+  rolloverCount Int      @default(0)
+  positionIndex Int      @default(0)
+  
+  user    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tags    TaskTag[]
+  history TaskHistory[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([userId, scheduledFor])
+  @@index([userId, status])
+}
+
+model Tag {
+  id     String @id @default(cuid())
+  userId String
+  name   String
+  
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks TaskTag[]
+  
+  @@unique([userId, name])
+}
+
+model TaskTag {
+  taskId String
+  tagId  String
+  
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  
+  @@id([taskId, tagId])
+}
+
+model DayNote {
+  id          String   @id @default(cuid())
+  userId      String
+  date        DateTime
+  contentText String
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([userId, date])
+}
+
+model TaskHistory {
+  id     String   @id @default(cuid())
+  taskId String
+  type   String   // "create" | "complete" | "reopen" | "rollover" | "edit"
+  at     DateTime @default(now())
+  meta   String?  // JSON string
+  
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+}
