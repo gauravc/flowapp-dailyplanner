@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { format, isPast } from 'date-fns'
+import { isDateToday } from '@/lib/dates'
 import { Calendar, Edit, GripVertical, Clock } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
@@ -28,6 +29,7 @@ export interface Task {
 
 interface TaskItemProps {
   task: Task
+  index: number
   onToggle: (taskId: string, completed: boolean) => void
   onUpdate: (taskId: string, updates: Partial<Task>) => void
   onDelete: (taskId: string) => void
@@ -61,6 +63,7 @@ function getTagColor(tagName: string): string {
 
 export function TaskItem({ 
   task, 
+  index,
   onToggle, 
   onUpdate, 
   onDelete, 
@@ -108,7 +111,7 @@ export function TaskItem({
         ref={setNodeRef}
         style={style}
         className={cn(
-          "group flex items-start gap-2 p-3 border-b border-gray-200 hover:bg-gray-50 transition-colors relative min-h-[80px]",
+          "relative flex items-start gap-3 p-2 bg-white border border-gray-200 rounded-md shadow-sm hover:shadow-md transition-all cursor-pointer group min-h-[30px]",
           isDragging && "opacity-50",
           isHighlighted && "highlight-match",
           isCompleted && "opacity-60"
@@ -117,9 +120,6 @@ export function TaskItem({
         {/* Notebook line styling */}
         <div className="absolute top-0 left-0 right-0 h-px bg-gray-300"></div>
         <div className="absolute bottom-0 left-0 right-0 h-px bg-gray-300"></div>
-        {/* Additional notebook lines for better spacing */}
-        <div className="absolute top-1/3 left-0 right-0 h-px bg-gray-200 opacity-50"></div>
-        <div className="absolute top-2/3 left-0 right-0 h-px bg-gray-200 opacity-50"></div>
         
         <button
           className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity mt-1"
@@ -137,7 +137,7 @@ export function TaskItem({
 
         <div className="flex-1 min-w-0">
           {/* Task title and dates row */}
-          <div className="flex items-center gap-3 mb-2">
+          <div className="flex items-center gap-3 mb-1">
             <div
               className={cn(
                 "text-sm font-medium flex-1",
@@ -148,15 +148,7 @@ export function TaskItem({
               {task.title}
             </div>
             
-            {/* Scheduled Date (always visible) */}
-            <div className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0">
-              <Clock className="h-3 w-3" />
-              <span>
-                {format(task.scheduledFor, 'MMM d')}
-              </span>
-            </div>
-            
-            {/* Due Date (if set) */}
+            {/* Due Date (only show if explicitly set by user) */}
             {task.dueDate && (
               <div className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0">
                 <Calendar className="h-3 w-3" />
@@ -165,9 +157,19 @@ export function TaskItem({
                 </span>
               </div>
             )}
+            
+            {/* Scheduled Date (only show if different from today AND no due date is set) */}
+            {!task.dueDate && !isDateToday(task.scheduledFor) && (
+              <div className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0">
+                <Clock className="h-3 w-3" />
+                <span>
+                  {format(task.scheduledFor, 'MMM d')}
+                </span>
+              </div>
+            )}
           </div>
           
-          {/* Tags row - below the task text */}
+          {/* Tags row - below the task text in a single line */}
           {task.tags && task.tags.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {task.tags.map((taskTag) => {
@@ -177,7 +179,7 @@ export function TaskItem({
                   <span 
                     key={tagName} 
                     className={cn(
-                      "inline-block text-xs px-2 py-1 border rounded-md font-medium",
+                      "inline-block text-[10px] px-1.5 py-0.5 border rounded-sm font-medium",
                       tagColor
                     )}
                   >

@@ -88,7 +88,7 @@ export function DayColumn({
       <div
         ref={setNodeRef}
         className={cn(
-          "flex flex-col bg-card border rounded-lg overflow-hidden min-h-[600px] w-[300px] flex-shrink-0",
+          "flex flex-col bg-card border rounded-lg overflow-hidden min-h-[900px] w-[300px] flex-shrink-0",
           today ? "border-blue-500 ring-2 ring-blue-200" : "border-border",
           weekend && "opacity-75",
           className
@@ -116,7 +116,7 @@ export function DayColumn({
           {/* Notebook background pattern */}
           <div className="absolute inset-0 pointer-events-none">
             {/* Horizontal lines */}
-            {Array.from({ length: 20 }).map((_, i) => (
+            {Array.from({ length: 30 }).map((_, i) => (
               <div
                 key={i}
                 className="absolute left-0 right-0 h-px bg-gray-200 opacity-30"
@@ -124,40 +124,44 @@ export function DayColumn({
               />
             ))}
           </div>
-          <SortableContext items={sortedTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-            {sortedTasks.map((task) => (
-              <TaskItem
-                key={task.id}
-                task={task}
-                onToggle={onToggleTask}
-                onUpdate={onUpdateTask}
-                onDelete={onDeleteTask}
-                isHighlighted={task.id === highlightedTaskId}
-                showCompleted={showCompleted}
-              />
-            ))}
-          </SortableContext>
           
-          {sortedTasks.length === 0 && (
-            <div className="relative p-4 text-center text-muted-foreground text-sm min-h-[200px] flex items-center justify-center">
-              {/* Notebook lines for empty state */}
-              <div className="absolute top-0 left-0 right-0 h-px bg-gray-300"></div>
-              <div className="absolute top-1/4 left-0 right-0 h-px bg-gray-200 opacity-50"></div>
-              <div className="absolute top-1/2 left-0 right-0 h-px bg-gray-200 opacity-50"></div>
-              <div className="absolute top-3/4 left-0 right-0 h-px bg-gray-200 opacity-50"></div>
-              <div className="absolute bottom-0 left-0 right-0 h-px bg-gray-300"></div>
-              <div className="relative z-10">
-                {today ? (
-                  <div>
-                    <div className="font-medium mb-2">Ready to get organized?</div>
-                    <div className="text-xs opacity-75">Sign in below to add your first task</div>
-                  </div>
-                ) : (
-                  "No tasks scheduled"
-                )}
+          <div className="relative z-10 p-3">
+            <SortableContext items={sortedTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+              {sortedTasks.map((task, index) => (
+                <TaskItem
+                  key={`${task.id}-${dateKey}-${index}`}
+                  task={task}
+                  index={index}
+                  onToggle={onToggleTask}
+                  onUpdate={onUpdateTask}
+                  onDelete={onDeleteTask}
+                  isHighlighted={task.id === highlightedTaskId}
+                  showCompleted={showCompleted}
+                />
+              ))}
+            </SortableContext>
+            
+            {sortedTasks.length === 0 && (
+              <div className="relative p-4 text-center text-muted-foreground text-sm min-h-[200px] flex items-center justify-center">
+                {/* Notebook lines for empty state */}
+                <div className="absolute top-0 left-0 right-0 h-px bg-gray-300"></div>
+                <div className="absolute top-1/4 left-0 right-0 h-px bg-gray-200 opacity-50"></div>
+                <div className="absolute top-1/2 left-0 right-0 h-px bg-gray-200 opacity-50"></div>
+                <div className="absolute top-3/4 left-0 right-0 h-px bg-gray-200 opacity-50"></div>
+                <div className="absolute bottom-0 left-0 right-0 h-px bg-gray-300"></div>
+                <div className="relative z-10">
+                  {today ? (
+                    <div>
+                      <div className="font-medium mb-2">Ready to get organized?</div>
+                      <div className="text-xs opacity-75">Add your first task below</div>
+                    </div>
+                  ) : (
+                    "No tasks scheduled"
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Quick Add */}

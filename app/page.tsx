@@ -221,6 +221,14 @@ export default function HomePage() {
       setTasks(prev => {
         const newTasks = { ...prev }
         const currentTasks = newTasks[dateKey] || []
+        
+        // Check if task already exists to prevent duplicates
+        const taskExists = currentTasks.some(t => t.id === taskWithDefaults.id)
+        if (taskExists) {
+          console.warn('Task already exists, skipping duplicate addition:', taskWithDefaults.id)
+          return prev
+        }
+        
         newTasks[dateKey] = [...currentTasks, taskWithDefaults]
         console.log('=== STATE UPDATE DEBUG ===')
         console.log('Previous state keys:', Object.keys(prev))
@@ -234,7 +242,7 @@ export default function HomePage() {
     } catch (error) {
       console.error('Failed to create task:', error)
     }
-  }, []) // Remove dependencies to prevent recreation issues
+  }, [tasks]) // Add tasks dependency to prevent stale state issues
 
   const updateTask = useCallback(async (taskId: string, updates: Partial<Task>) => {
     try {
@@ -306,7 +314,14 @@ export default function HomePage() {
           if (!newTasks[newDateKey]) {
             newTasks[newDateKey] = []
           }
-          newTasks[newDateKey].push(updatedTaskWithDefaults)
+          
+          // Check if task already exists in the new date to prevent duplicates
+          const taskExistsInNewDate = newTasks[newDateKey].some(t => t.id === taskId)
+          if (!taskExistsInNewDate) {
+            newTasks[newDateKey].push(updatedTaskWithDefaults)
+          } else {
+            console.warn('Task already exists in new date, skipping duplicate addition:', taskId)
+          }
           
           console.log('Task moved successfully')
         } else {
@@ -386,32 +401,39 @@ export default function HomePage() {
     const overId = over.id.toString()
 
     if (activeId !== overId) {
-      const activeTask = tasks[Object.keys(tasks).find(key => 
-        tasks[key].some(task => task.id === activeId)
-      ) || ''].find(task => task.id === activeId)
+      // Find the date key for the active task
+      const activeDateKey = Object.keys(tasks).find(key => 
+        tasks[key]?.some(task => task.id === activeId)
+      )
+      
+      // Find the date key for the over task
+      const overDateKey = Object.keys(tasks).find(key => 
+        tasks[key]?.some(task => task.id === overId)
+      )
 
-      if (activeTask) {
-        const overTask = tasks[Object.keys(tasks).find(key => 
-          tasks[key].some(task => task.id === overId)
-        ) || ''].find(task => task.id === overId)
+      if (activeDateKey && overDateKey) {
+        const activeTask = tasks[activeDateKey]?.find(task => task.id === activeId)
+        const overTask = tasks[overDateKey]?.find(task => task.id === overId)
 
-        if (overTask) {
-          const activeDateKey = formatDate(activeTask.scheduledFor)
-          const overDateKey = formatDate(overTask.scheduledFor)
+        if (activeTask && overTask) {
+          const activeDateKeyFormatted = formatDate(activeTask.scheduledFor)
+          const overDateKeyFormatted = formatDate(overTask.scheduledFor)
 
-          if (activeDateKey !== overDateKey) {
+          if (activeDateKeyFormatted !== overDateKeyFormatted) {
             // Move task to different day
             setTasks(prev => {
               const newTasks = { ...prev }
               
               // Remove from old day
-              newTasks[activeDateKey] = newTasks[activeDateKey].filter(t => t.id !== activeId)
+              if (newTasks[activeDateKeyFormatted]) {
+                newTasks[activeDateKeyFormatted] = newTasks[activeDateKeyFormatted].filter(t => t.id !== activeId)
+              }
               
               // Add to new day
-              if (!newTasks[overDateKey]) {
-                newTasks[overDateKey] = []
+              if (!newTasks[overDateKeyFormatted]) {
+                newTasks[overDateKeyFormatted] = []
               }
-              newTasks[overDateKey].push({ ...activeTask, scheduledFor: overTask.scheduledFor })
+              newTasks[overDateKeyFormatted].push({ ...activeTask, scheduledFor: overTask.scheduledFor })
               
               return newTasks
             })
@@ -434,32 +456,36 @@ export default function HomePage() {
     const overId = over.id.toString()
 
     if (activeId !== overId) {
-      const activeTask = tasks[Object.keys(tasks).find(key => 
-        tasks[key].some(task => task.id === activeId)
-      ) || ''].find(task => task.id === activeId)
+      // Find the date key for the active task
+      const sourceDateKey = Object.keys(tasks).find(key => 
+        tasks[key]?.some(task => task.id === activeId)
+      )
 
-      if (!activeTask) return
-
-      const sourceDateKey = formatDate(activeTask.scheduledFor)
-      const dayTasks = tasks[sourceDateKey] || []
-      
-      const oldIndex = dayTasks.findIndex(task => task.id === activeId)
-      const newIndex = dayTasks.findIndex(task => task.id === overId)
-      
-      if (oldIndex >= 0 && newIndex >= 0) {
-        const reorderedTasks = arrayMove(dayTasks, oldIndex, newIndex)
+      if (sourceDateKey) {
+        const activeTask = tasks[sourceDateKey]?.find(task => task.id === activeId)
         
-        setTasks(prev => ({
-          ...prev,
-          [sourceDateKey]: reorderedTasks
-        }))
-        
-        // Update position indices on server
-        reorderedTasks.forEach((task, index) => {
-          if (task.positionIndex !== index) {
-            updateTask(task.id, { positionIndex: index })
+        if (activeTask) {
+          const dayTasks = tasks[sourceDateKey] || []
+          
+          const oldIndex = dayTasks.findIndex(task => task.id === activeId)
+          const newIndex = dayTasks.findIndex(task => task.id === overId)
+          
+          if (oldIndex >= 0 && newIndex >= 0) {
+            const reorderedTasks = arrayMove(dayTasks, oldIndex, newIndex)
+            
+            setTasks(prev => ({
+              ...prev,
+              [sourceDateKey]: reorderedTasks
+            }))
+            
+            // Update position indices on server
+            reorderedTasks.forEach((task, index) => {
+              if (task.positionIndex !== index) {
+                updateTask(task.id, { positionIndex: index })
+              }
+            })
           }
-        })
+        }
       }
     }
   }

@@ -48,11 +48,11 @@ export function EditTaskDialog({ task, open, onOpenChange, onUpdate, onDelete }:
   )
   
   // Handle dueDate - convert to Date if it's a string
-  const initialDueDate = task.dueDate instanceof Date 
-    ? task.dueDate 
+  const initialDueDate = task.dueDate instanceof Date
+    ? task.dueDate
     : (task.dueDate ? new Date(task.dueDate) : null)
   const [dueDate, setDueDate] = useState(
-    initialDueDate ? format(initialDueDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')
+    initialDueDate ? format(initialDueDate, 'yyyy-MM-dd') : ''
   )
   
   const [tags, setTags] = useState(
@@ -75,7 +75,7 @@ export function EditTaskDialog({ task, open, onOpenChange, onUpdate, onDelete }:
       const dueDateValue = task.dueDate instanceof Date 
         ? task.dueDate 
         : (task.dueDate ? new Date(task.dueDate) : null)
-      setDueDate(dueDateValue ? format(dueDateValue, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'))
+      setDueDate(dueDateValue ? format(dueDateValue, 'yyyy-MM-dd') : '')
       
       setTags(task.tags.map(t => t.tag.name).join(', '))
     }
@@ -101,6 +101,9 @@ export function EditTaskDialog({ task, open, onOpenChange, onUpdate, onDelete }:
         alert('Please enter a valid due date')
         return
       }
+    } else {
+      // If due date is empty, explicitly set to null
+      dueDateValue = null
     }
 
     // Parse scheduledFor date
@@ -117,11 +120,17 @@ export function EditTaskDialog({ task, open, onOpenChange, onUpdate, onDelete }:
       }
     }
     
+    // Process tags from comma-separated input
+    const processedTags = tags.trim() 
+      ? tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0)
+      : []
+    
     const updates: any = {
       title: title.trim(),
       description: description.trim() || null,
       priority: priority === 'none' ? null : priority,
-      dueDate: dueDateValue,
+      dueDate: dueDateValue, // This will be null if not set, or a Date if set
+      tags: processedTags,
     }
     
     // Only include scheduledFor if it's actually different
@@ -140,6 +149,10 @@ export function EditTaskDialog({ task, open, onOpenChange, onUpdate, onDelete }:
     console.log('=== EDIT TASK DEBUG ===')
     console.log('Original task scheduledFor:', task.scheduledFor)
     console.log('New scheduledFor value:', scheduledForValue)
+    console.log('Original task dueDate:', task.dueDate)
+    console.log('New dueDate value:', dueDateValue)
+    console.log('Original task tags:', task.tags)
+    console.log('Processed tags:', processedTags)
     console.log('Updates object:', updates)
     onUpdate(task.id, updates)
     onOpenChange(false)
@@ -208,14 +221,17 @@ export function EditTaskDialog({ task, open, onOpenChange, onUpdate, onDelete }:
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="dueDate">Due Date</Label>
+              <Label htmlFor="dueDate">Due Date (Optional)</Label>
               <Input
                 id="dueDate"
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
+                placeholder="Leave empty for no due date"
               />
+              <div className="text-xs text-muted-foreground">
+                Set a due date if you want to track deadlines. Leave empty to use scheduled date as default.
+              </div>
             </div>
           </div>
 

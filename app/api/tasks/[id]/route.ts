@@ -64,6 +64,51 @@ export async function PATCH(
     if (body.priority !== undefined) updateData.priority = body.priority
     if (body.positionIndex !== undefined) updateData.positionIndex = body.positionIndex
     
+    // Handle tags update
+    if (body.tags !== undefined) {
+      console.log('Processing tags:', body.tags)
+      
+      // If tags is an array of strings, we need to create/update the tag relationships
+      if (Array.isArray(body.tags)) {
+        // First, delete existing tag relationships
+        await db.taskTag.deleteMany({
+          where: { taskId: taskId }
+        })
+        
+        // Then create new tag relationships
+        for (const tagName of body.tags) {
+          if (tagName.trim()) {
+            // Find or create the tag (user-specific)
+            let tag = await db.tag.findFirst({
+              where: { 
+                name: tagName.trim(),
+                userId: session.user.id
+              }
+            })
+            
+            if (!tag) {
+              tag = await db.tag.create({
+                data: { 
+                  name: tagName.trim(),
+                  userId: session.user.id
+                }
+              })
+            }
+            
+            // Create the relationship
+            await db.taskTag.create({
+              data: {
+                taskId: taskId,
+                tagId: tag.id
+              }
+            })
+          }
+        }
+        
+        console.log('Tags updated successfully')
+      }
+    }
+    
     if (body.scheduledFor !== undefined) {
       console.log('Processing scheduledFor:', body.scheduledFor)
       
@@ -102,24 +147,41 @@ export async function PATCH(
     
     if (body.dueDate !== undefined) {
       console.log('Processing dueDate:', body.dueDate)
+      console.log('dueDate type:', typeof body.dueDate)
+      console.log('dueDate value:', body.dueDate)
       
       // When sent via fetch, Date objects become strings, so we need to handle both cases
       if (body.dueDate && typeof body.dueDate === 'string') {
-        // Parse the date string and create a local date without timezone conversion
-        const [year, month, day] = body.dueDate.split('-').map(Number)
-        const parsedDate = new Date(year, month - 1, day)
+        // Handle both ISO strings and YYYY-MM-DD format
+        let parsedDate: Date
+        
+        if (body.dueDate.includes('T')) {
+          // ISO string format (e.g., '2025-08-15T07:00:00.000Z')
+          console.log('Detected ISO string format, parsing with new Date()')
+          parsedDate = new Date(body.dueDate)
+          console.log('Parsed result:', parsedDate, 'Valid:', !isNaN(parsedDate.getTime()))
+        } else {
+          // YYYY-MM-DD format
+          console.log('Detected YYYY-MM-DD format, parsing with parseDate()')
+          parsedDate = parseDate(body.dueDate)
+          console.log('Parsed result:', parsedDate, 'Valid:', !isNaN(parsedDate.getTime()))
+        }
+        
         if (!isNaN(parsedDate.getTime())) {
-          console.log('Successfully parsed string to Date:', parsedDate)
+          console.log('Successfully parsed dueDate to Date:', parsedDate)
           updateData.dueDate = parsedDate
         } else {
-          console.log('Failed to parse string to Date, setting to null')
+          console.log('Failed to parse dueDate to Date, setting to null')
           updateData.dueDate = null
         }
       } else if (body.dueDate && body.dueDate instanceof Date && !isNaN(body.dueDate.getTime())) {
-        console.log('Using Date object directly')
+        console.log('Using dueDate Date object directly')
         updateData.dueDate = body.dueDate
+      } else if (body.dueDate === null || body.dueDate === '') {
+        console.log('Setting dueDate to null (explicitly cleared)')
+        updateData.dueDate = null
       } else {
-        console.log('Setting dueDate to null')
+        console.log('Setting dueDate to null (invalid input)')
         updateData.dueDate = null
       }
     }
