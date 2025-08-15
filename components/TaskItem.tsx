@@ -1,11 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { useSortable } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
 import { format, isPast } from 'date-fns'
 import { isDateToday } from '@/lib/dates'
-import { Calendar, Edit, GripVertical, Clock } from 'lucide-react'
+import { Calendar, Edit, Clock } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -74,22 +72,6 @@ export function TaskItem({
   const isCompleted = task.status === 'done'
   const isOverdue = task.dueDate && isPast(task.dueDate) && !isCompleted
   
-  // Call hooks before any conditional returns
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
-    id: task.id,
-    data: {
-      type: 'task',
-      task,
-    },
-  })
-
   // Safety check for required properties
   if (!task.scheduledFor) {
     console.warn('Task missing scheduledFor property:', task)
@@ -97,116 +79,123 @@ export function TaskItem({
   }
 
   const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
+    opacity: isCompleted ? 0.6 : 1,
   }
 
-  if (isCompleted && !showCompleted) {
+  const handleToggle = () => {
+    onToggle(task.id, !isCompleted)
+  }
+
+  const handleEdit = () => {
+    setIsEditOpen(true)
+  }
+
+  const handleDelete = () => {
+    if (confirm('Are you sure you want to delete this task?')) {
+      onDelete(task.id)
+    }
+  }
+
+  const handleUpdate = (updates: Partial<Task>) => {
+    onUpdate(task.id, updates)
+    setIsEditOpen(false)
+  }
+
+  // Don't render completed tasks if they should be hidden
+  if (!showCompleted && isCompleted) {
     return null
   }
 
   return (
     <>
       <div
-        ref={setNodeRef}
-        style={style}
         className={cn(
-          "relative flex items-start gap-3 p-2 bg-white border border-gray-200 rounded-md shadow-sm hover:shadow-md transition-all cursor-pointer group min-h-[30px]",
-          isDragging && "opacity-50",
-          isHighlighted && "highlight-match",
-          isCompleted && "opacity-60"
+          "group relative bg-white border border-gray-200 rounded-lg p-3 mb-3 transition-all duration-200 hover:shadow-md",
+          isHighlighted && "ring-2 ring-blue-400 shadow-lg",
+          isCompleted && "bg-gray-50",
+          isOverdue && "border-red-300 bg-red-50"
         )}
+        style={style}
       >
-        {/* Notebook line styling */}
-        <div className="absolute top-0 left-0 right-0 h-px bg-gray-300"></div>
-        <div className="absolute bottom-0 left-0 right-0 h-px bg-gray-300"></div>
-        
-        <button
-          className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity mt-1"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
+        {/* Main Task Content */}
+        <div className="flex items-start space-x-3">
+          {/* Checkbox */}
+          <div className="flex-shrink-0 mt-1">
+            <Checkbox
+              checked={isCompleted}
+              onCheckedChange={handleToggle}
+              className="h-4 w-4"
+            />
+          </div>
 
-        <Checkbox
-          checked={isCompleted}
-          onCheckedChange={(checked) => onToggle(task.id, !!checked)}
-          className="mt-1"
-        />
-
-        <div className="flex-1 min-w-0">
-          {/* Task title and dates row */}
-          <div className="flex items-center gap-3 mb-1">
-            <div
-              className={cn(
-                "text-sm font-medium flex-1",
-                isCompleted && "line-through",
-                isOverdue && "text-destructive"
-              )}
-            >
+          {/* Task Details */}
+          <div className="flex-1 min-w-0">
+            {/* Task Title */}
+            <div className={cn(
+              "text-sm font-medium text-gray-900 mb-2",
+              isCompleted && "line-through text-gray-500"
+            )}>
               {task.title}
             </div>
-            
-            {/* Due Date (only show if explicitly set by user) */}
+
+            {/* Due Date - Only show if explicitly set and different from scheduled date */}
             {task.dueDate && (
-              <div className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0">
-                <Calendar className="h-3 w-3" />
-                <span className={isOverdue ? "text-destructive font-medium" : ""}>
-                  {format(task.dueDate, 'MMM d')}
-                </span>
+              <div className="flex items-center space-x-1 text-xs text-gray-600 mb-2">
+                <Clock className="h-3 w-3" />
+                <span>Due: {format(task.dueDate, 'MMM d')}</span>
+                {isOverdue && (
+                  <span className="text-red-600 font-medium">(Overdue)</span>
+                )}
               </div>
             )}
-            
-            {/* Scheduled Date (only show if different from today AND no due date is set) */}
-            {!task.dueDate && !isDateToday(task.scheduledFor) && (
-              <div className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0">
-                <Clock className="h-3 w-3" />
-                <span>
-                  {format(task.scheduledFor, 'MMM d')}
-                </span>
+
+            {/* Tags */}
+            {task.tags && task.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1 mb-2">
+                {task.tags.map((tagObj, tagIndex) => (
+                  <Badge
+                    key={tagIndex}
+                    variant="secondary"
+                    className={cn(
+                      "text-xs px-1 py-0.5",
+                      getTagColor(tagObj.tag.name)
+                    )}
+                  >
+                    {tagObj.tag.name}
+                  </Badge>
+                ))}
+              </div>
+            )}
+
+            {/* Rollover Count */}
+            {task.rolloverCount > 0 && (
+              <div className="text-xs text-orange-600 font-medium">
+                Rolled over {task.rolloverCount} time{task.rolloverCount !== 1 ? 's' : ''}
               </div>
             )}
           </div>
-          
-          {/* Tags row - below the task text in a single line */}
-          {task.tags && task.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {task.tags.map((taskTag) => {
-                const tagName = taskTag?.tag?.name || 'unknown'
-                const tagColor = getTagColor(tagName)
-                return (
-                  <span 
-                    key={tagName} 
-                    className={cn(
-                      "inline-block text-[10px] px-1.5 py-0.5 border rounded-sm font-medium",
-                      tagColor
-                    )}
-                  >
-                    #{tagName}
-                  </span>
-                )
-              })}
-            </div>
-          )}
-        </div>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 mt-1"
-          onClick={() => setIsEditOpen(true)}
-        >
-          <Edit className="h-3 w-3" />
-        </Button>
+          {/* Action Buttons */}
+          <div className="flex-shrink-0 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleEdit}
+              className="h-8 w-8 p-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       </div>
 
+      {/* Edit Dialog */}
       <EditTaskDialog
         task={task}
         open={isEditOpen}
         onOpenChange={setIsEditOpen}
-        onUpdate={onUpdate}
-        onDelete={onDelete}
+        onUpdate={(taskId, updates) => handleUpdate(updates)}
+        onDelete={handleDelete}
       />
     </>
   )

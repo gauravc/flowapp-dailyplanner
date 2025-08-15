@@ -13,6 +13,7 @@ interface NotesPanelProps {
   onToggle: () => void
   onSave: (content: string) => void
   className?: string
+  isMobile?: boolean
 }
 
 export function NotesPanel({
@@ -21,7 +22,8 @@ export function NotesPanel({
   isExpanded,
   onToggle,
   onSave,
-  className
+  className,
+  isMobile = false
 }: NotesPanelProps) {
   const [content, setContent] = useState(initialContent)
   const [isSaving, setIsSaving] = useState(false)
@@ -64,25 +66,21 @@ export function NotesPanel({
   }
 
   return (
-    <div className={cn("flex flex-col", className)}>
-      {/* Notes Toggle Button */}
-      <Button
-        variant="ghost"
-        onClick={onToggle}
-        className={cn(
-          "w-12 h-12 p-0 justify-center rounded-full hover:bg-accent/50 transition-all duration-200",
-          isExpanded && "bg-accent text-accent-foreground"
-        )}
-        title="Toggle Notes"
-      >
-        <FileText className="h-5 w-5" />
-      </Button>
-      
+    <div className={cn(
+      "flex flex-col",
+      "lg:relative", // Desktop: relative positioning
+      "fixed inset-0 z-50 bg-white lg:bg-transparent", // Mobile: full screen, Desktop: transparent
+      className
+    )}>
       {/* Notes Column */}
       {isExpanded && (
-        <div className="bg-card border rounded-lg overflow-hidden w-[560px] min-h-[400px] flex-shrink-0">
+        <div className={cn(
+          "bg-card border rounded-lg overflow-hidden flex-shrink-0",
+          "w-full h-full lg:w-full lg:min-h-[600px]", // Mobile: full screen, Desktop: full width of container
+          "lg:relative" // Desktop: relative positioning
+        )}>
           <div className="p-3 border-b border-border/50 bg-muted/30">
-            <div className="text-sm font-medium text-center">Notes</div>
+            <div className="text-sm font-medium text-center">Notes for {date.toLocaleDateString()}</div>
           </div>
           
           <div className="p-3 flex-1">
@@ -92,7 +90,10 @@ export function NotesPanel({
               onChange={(e) => setContent(e.target.value)}
               onBlur={handleBlur}
               placeholder="Add notes for this day..."
-              className="min-h-[320px] resize-none border-dashed focus:border-solid w-full"
+              className={cn(
+                "resize-none border-dashed focus:border-solid w-full",
+                "min-h-[calc(100vh-120px)] lg:min-h-[500px]" // Mobile: full height, Desktop: fixed height
+              )}
             />
             {isSaving && (
               <div className="text-xs text-muted-foreground text-center mt-2">Saving...</div>

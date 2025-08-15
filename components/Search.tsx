@@ -16,30 +16,25 @@ interface SearchResult {
 }
 
 interface SearchProps {
-  isOpen: boolean
-  onClose: () => void
-  onNavigate: (date: string, id?: string) => void
+  query: string
+  onQueryChange: (query: string) => void
+  onTaskHighlight: (taskId: string | undefined) => void
   className?: string
 }
 
-export function Search({ isOpen, onClose, onNavigate, className }: SearchProps) {
-  const [query, setQuery] = useState('')
+export function Search({ query, onQueryChange, onTaskHighlight, className }: SearchProps) {
   const [results, setResults] = useState<SearchResult[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [showResults, setShowResults] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const resultsRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (isOpen && inputRef.current) {
-      inputRef.current.focus()
-    }
-  }, [isOpen])
 
   useEffect(() => {
     const searchTasks = async () => {
       if (!query.trim()) {
         setResults([])
+        setShowResults(false)
         return
       }
 
@@ -49,9 +44,11 @@ export function Search({ isOpen, onClose, onNavigate, className }: SearchProps) 
         const data = await response.json()
         setResults(data.results || [])
         setSelectedIndex(0)
+        setShowResults(true)
       } catch (error) {
         console.error('Search failed:', error)
         setResults([])
+        setShowResults(false)
       } finally {
         setIsLoading(false)
       }
@@ -63,7 +60,8 @@ export function Search({ isOpen, onClose, onNavigate, className }: SearchProps) 
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
-      onClose()
+      setShowResults(false)
+      onQueryChange('')
     } else if (e.key === 'ArrowDown') {
       e.preventDefault()
       setSelectedIndex(prev => Math.min(prev + 1, results.length - 1))
@@ -79,100 +77,93 @@ export function Search({ isOpen, onClose, onNavigate, className }: SearchProps) 
   }
 
   const handleResultClick = (result: SearchResult) => {
-    onNavigate(result.date, result.type === 'task' ? result.id : undefined)
-    onClose()
-    setQuery('')
+    onTaskHighlight(result.type === 'task' ? result.id : undefined)
+    setShowResults(false)
+    onQueryChange('')
     setResults([])
+    
+    // Clear highlight after 3 seconds
+    setTimeout(() => onTaskHighlight(undefined), 3000)
   }
 
-  if (!isOpen) return null
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onQueryChange(e.target.value)
+  }
+
+  const handleInputFocus = () => {
+    if (query.trim() && results.length > 0) {
+      setShowResults(true)
+    }
+  }
+
+  const handleInputBlur = () => {
+    // Delay hiding results to allow clicking on them
+    setTimeout(() => setShowResults(false), 200)
+  }
 
   return (
-    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-start justify-center pt-20">
-      <div className={cn(
-        "bg-card border border-border rounded-lg shadow-lg w-full max-w-2xl mx-4",
-        className
-      )}>
-        <div className="p-4 border-b border-border/50">
-          <div className="relative">
-            <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              ref={inputRef}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Search tasks and notes..."
-              className="pl-10 text-base"
-            />
-          </div>
-        </div>
-
-        {(results.length > 0 || isLoading) && (
-          <div
-            ref={resultsRef}
-            className="max-h-96 overflow-auto custom-scrollbar"
-          >
-            {isLoading ? (
-              <div className="p-4 text-center text-muted-foreground">
-                Searching...
-              </div>
-            ) : (
-              results.map((result, index) => (
-                <button
-                  key={`${result.type}-${result.id}`}
-                  onClick={() => handleResultClick(result)}
-                  className={cn(
-                    "w-full p-4 text-left border-b border-border/50 last:border-b-0 hover:bg-accent/50 transition-colors",
-                    index === selectedIndex && "bg-accent/50"
-                  )}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="mt-1">
-                      {result.type === 'task' ? (
-                        <div className="h-4 w-4 rounded border border-muted-foreground/30" />
-                      ) : (
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Calendar className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">
-                          {format(new Date(result.date + 'T00:00:00.000Z'), 'MMM d, yyyy')}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {result.type === 'task' ? 'Task' : 'Note'}
-                        </span>
-                      </div>
-                      
-                      <div className="text-sm font-medium line-clamp-1 mb-1">
-                        {result.content}
-                      </div>
-                      
-                      {result.snippet && result.snippet !== result.content && (
-                        <div className="text-xs text-muted-foreground line-clamp-2">
-                          {result.snippet}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
-        )}
-
-        {query && !isLoading && results.length === 0 && (
-          <div className="p-4 text-center text-muted-foreground">
-            No results found for &quot;{query}&quot;
-          </div>
-        )}
-
-        <div className="p-2 border-t border-border/50 text-xs text-muted-foreground text-center">
-          Use ↑↓ to navigate, Enter to select, Esc to close
-        </div>
+    <div className={cn("relative", className)}>
+      <div className="relative">
+        <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <Input
+          ref={inputRef}
+          type="text"
+          placeholder="Search tasks and notes..."
+          value={query}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          onFocus={handleInputFocus}
+          onBlur={handleInputBlur}
+          className="pl-10 pr-4 py-2 w-full border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+        />
       </div>
+
+      {/* Search Results Dropdown */}
+      {showResults && results.length > 0 && (
+        <div 
+          ref={resultsRef}
+          className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto z-50"
+        >
+          {results.map((result, index) => (
+            <div
+              key={result.id}
+              className={cn(
+                "px-4 py-3 cursor-pointer hover:bg-gray-50 border-b border-gray-100 last:border-b-0",
+                index === selectedIndex && "bg-blue-50 border-blue-200"
+              )}
+              onClick={() => handleResultClick(result)}
+            >
+              <div className="flex items-start space-x-3">
+                <div className="flex-shrink-0 mt-1">
+                  {result.type === 'task' ? (
+                    <Calendar className="h-4 w-4 text-blue-600" />
+                  ) : (
+                    <FileText className="h-4 w-4 text-green-600" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-gray-900 truncate">
+                    {result.content}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {format(new Date(result.date), 'MMM d, yyyy')}
+                  </div>
+                  <div className="text-xs text-gray-600 mt-1 line-clamp-2">
+                    {result.snippet}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Loading State */}
+      {isLoading && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-gray-500">
+          Searching...
+        </div>
+      )}
     </div>
   )
 }
