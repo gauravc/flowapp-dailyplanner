@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 model User {
@@ -105,26 +105,26 @@ model TaskTag {
   @@id([taskId, tagId])
 }
 
+model TaskHistory {
+  id        String   @id @default(cuid())
+  taskId    String
+  action    String   // "created" | "updated" | "deleted" | "status_changed"
+  oldValue  String?
+  newValue  String?
+  timestamp DateTime @default(now())
+  
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+}
+
 model DayNote {
-  id          String   @id @default(cuid())
-  userId      String
-  date        DateTime
-  contentText String
-  
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime
+  content   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
-  @@unique([userId, date])
-}
-
-model TaskHistory {
-  id     String   @id @default(cuid())
-  taskId String
-  type   String   // "create" | "complete" | "reopen" | "rollover" | "edit"
-  at     DateTime @default(now())
-  meta   String?  // JSON string
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  @@unique([userId, date])
 }
