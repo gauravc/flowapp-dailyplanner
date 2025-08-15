@@ -5,7 +5,7 @@ import { useSession, signOut } from 'next-auth/react'
 import { ChevronLeft, ChevronRight, Calendar, User, LogOut, MoreHorizontal, CheckSquare, Square } from 'lucide-react'
 import { DayColumn } from '@/components/DayColumn'
 import { Search } from '@/components/Search'
-import { getWeekDays, getToday, formatDate, isDateToday, formatDayName } from '@/lib/dates'
+import { getWeekDays, getToday, formatDate, formatDayName, formatDisplayDate } from '@/lib/dates'
 import { Task } from '@/components/TaskItem'
 import { cn } from '@/lib/utils'
 
@@ -13,17 +13,50 @@ export default function HomePage() {
   const { data: session, status } = useSession()
   const [tasks, setTasks] = useState<Record<string, Task[]>>({})
   const [currentWeek, setCurrentWeek] = useState<Date[]>([])
-  const [currentView, setCurrentView] = useState<'today' | 'week'>('today')
+  const [currentView, setCurrentView] = useState<'today' | 'week'>('week')
   const [showCompleted, setShowCompleted] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | undefined>(undefined)
-
   const [sessionError, setSessionError] = useState<string | null>(null)
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
   
+  // Mobile day navigation state
+  const [mobileCurrentDayIndex, setMobileCurrentDayIndex] = useState(0)
+
+  // Mobile day navigation functions
+  const goToPreviousDay = () => {
+    setMobileCurrentDayIndex(prev => Math.max(0, prev - 1))
+  }
+
+  const goToNextDay = () => {
+    setMobileCurrentDayIndex(prev => Math.min(currentWeek.length - 1, prev + 1))
+  }
+
+  const goToDay = (dayIndex: number) => {
+    setMobileCurrentDayIndex(Math.max(0, Math.min(currentWeek.length - 1, dayIndex)))
+  }
+
+  // Get the current day for mobile view
+  const getMobileCurrentDay = () => {
+    return currentWeek[mobileCurrentDayIndex] || currentWeek[0] || new Date()
+  }
+
   // Touch swipe support
+  const mainContentRef = useRef<HTMLDivElement>(null)
   const [touchStart, setTouchStart] = useState<number | null>(null)
   const [touchEnd, setTouchEnd] = useState<number | null>(null)
-  const mainContentRef = useRef<HTMLDivElement>(null)
+
+  // Close profile menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showProfileMenu && !(event.target as Element).closest('.profile-menu')) {
+        setShowProfileMenu(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showProfileMenu])
 
   // Debug logging
   console.log('🔍 HomePage Debug:', { 
@@ -60,15 +93,17 @@ export default function HomePage() {
     }
   }
 
-  // Initialize with today's date
+  // Initialize current week and mobile day
   useEffect(() => {
     const today = getToday()
-    console.log('🔍 Initializing with today:', today, 'isValid:', !isNaN(today.getTime()))
-    const weekDays = getWeekDays(today) // Get full week starting Monday
-    console.log('🔍 Week days created:', weekDays.map(d => d.toDateString()))
-    console.log('🔍 Week days length:', weekDays.length)
+    const weekDays = getWeekDays(today)
     setCurrentWeek(weekDays)
-    setCurrentView('week') // Changed from 'today' to 'week'
+    
+    // Find today's index in the week
+    const todayIndex = weekDays.findIndex(date => 
+      date.toDateString() === today.toDateString()
+    )
+    setMobileCurrentDayIndex(todayIndex >= 0 ? todayIndex : 0)
   }, [])
 
   const loadWeekData = useCallback(async () => {
@@ -169,7 +204,6 @@ export default function HomePage() {
 
   // Touch swipe handlers
   const onTouchStart = (e: React.TouchEvent) => {
-    setTouchEnd(null)
     setTouchStart(e.targetTouches[0].clientX)
   }
 
@@ -184,11 +218,16 @@ export default function HomePage() {
     const isLeftSwipe = distance > 50
     const isRightSwipe = distance < -50
 
-    if (isLeftSwipe) {
-      navigateWeek('next')
-    } else if (isRightSwipe) {
-      navigateWeek('prev')
+    if (isLeftSwipe && mobileCurrentDayIndex < currentWeek.length - 1) {
+      // Swipe left = next day (if not at the end)
+      goToNextDay()
+    } else if (isRightSwipe && mobileCurrentDayIndex > 0) {
+      // Swipe right = previous day (if not at the beginning)
+      goToPreviousDay()
     }
+
+    setTouchStart(null)
+    setTouchEnd(null)
   }
 
   const createTask = useCallback(async (title: string, scheduledFor: Date, tags: string[] = []) => {
@@ -396,25 +435,31 @@ export default function HomePage() {
               {showCompleted ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
             </button>
             
-            <div className="relative">
+            <div className="relative profile-menu">
               <button 
+                onClick={() => setShowProfileMenu(!showProfileMenu)}
                 className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
                 title="User menu"
               >
                 <User className="h-5 w-5" />
               </button>
-              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-2 min-w-[160px] z-50">
-                <div className="px-3 py-2 text-sm text-gray-700 border-b border-gray-100">
-                  {session.user.email}
+              {showProfileMenu && (
+                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-2 min-w-[160px] z-50">
+                  <div className="px-3 py-2 text-sm text-gray-700 border-b border-gray-100">
+                    {session.user.email}
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowProfileMenu(false)
+                      signOut()
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span>Sign Out</span>
+                  </button>
                 </div>
-                <button
-                  onClick={() => signOut()}
-                  className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
-                >
-                  <LogOut className="h-4 w-4" />
-                  <span>Sign Out</span>
-                </button>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -427,7 +472,7 @@ export default function HomePage() {
               className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
               title="Previous day/week"
             >
-              <ChevronLeft className="h-5 w-5" />
+              <ChevronLeft className="h-4 w-4" />
             </button>
             
             <button
@@ -442,27 +487,9 @@ export default function HomePage() {
               className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full"
               title="Next day/week"
             >
-              <ChevronRight className="h-5 w-5" />
+              <ChevronRight className="h-4 w-4" />
             </button>
           </div>
-
-          {/* Week Navigation Dots */}
-          {currentView === 'week' && (
-            <div className="flex space-x-1">
-              {currentWeek.map((date, index) => {
-                const isToday = date.toDateString() === today.toDateString()
-                const isCurrent = currentWeek.indexOf(date) === 0
-                return (
-                  <div
-                    key={index}
-                    className={`w-2 h-2 rounded-full ${
-                      isToday ? 'bg-blue-600' : isCurrent ? 'bg-gray-400' : 'bg-gray-300'
-                    }`}
-                  />
-                )
-              })}
-            </div>
-          )}
         </div>
       </div>
 
@@ -499,43 +526,41 @@ export default function HomePage() {
             />
           </div>
         ) : (
-          /* Week View - Horizontal Scroll for Mobile */
+          /* Week View - Single Day for Mobile with Sliding Animation */
           <div className="block lg:hidden">
-            <div className="flex space-x-4 overflow-x-auto pb-4 px-4">
-              {currentWeek.map((date, index) => (
-                <DayColumn
-                  key={date.toISOString()}
-                  date={date}
-                  tasks={tasks[formatDate(date)] || []}
-                  onCreateTask={createTask}
-                  onToggleTask={toggleTask}
-                  onUpdateTask={updateTask}
-                  onDeleteTask={deleteTask}
-                  showCompleted={showCompleted}
-                  highlightedTaskId={highlightedTaskId}
-                  className="flex-shrink-0 w-80"
-                />
-              ))}
+            {/* Mobile Day Header */}
+            <div className="text-center mb-4">
+              <div className="text-lg font-semibold text-gray-900">
+                {formatDayName(getMobileCurrentDay())} - {formatDisplayDate(getMobileCurrentDay())}
+              </div>
+              <div className="text-sm text-gray-500 mt-1">
+                Swipe left/right to navigate days
+              </div>
             </div>
-            {/* Week Navigation Dots */}
-            <div className="flex justify-center space-x-2 mt-4">
-              {currentWeek.map((date, index) => (
-                <button
-                  key={date.toISOString()}
-                  onClick={() => {
-                    // Scroll to this day
-                    const dayElement = document.querySelector(`[data-day="${formatDate(date)}"]`)
-                    if (dayElement) {
-                      dayElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
-                    }
-                  }}
-                  className={cn(
-                    "w-2 h-2 rounded-full transition-colors",
-                    isDateToday(date) ? "bg-blue-600" : "bg-gray-300"
-                  )}
-                  title={`Go to ${formatDayName(date)}`}
-                />
-              ))}
+            
+            <div className="max-w-md mx-auto overflow-hidden">
+              <div 
+                className="transition-transform duration-300 ease-out"
+                style={{ transform: `translateX(-${mobileCurrentDayIndex * 100}%)` }}
+              >
+                <div className="flex">
+                  {currentWeek.map((date, index) => (
+                    <div key={date.toISOString()} className="w-full flex-shrink-0">
+                      <DayColumn
+                        date={date}
+                        tasks={tasks[formatDate(date)] || []}
+                        onCreateTask={createTask}
+                        onToggleTask={toggleTask}
+                        onUpdateTask={updateTask}
+                        onDeleteTask={deleteTask}
+                        showCompleted={showCompleted}
+                        highlightedTaskId={highlightedTaskId}
+                        className="w-full"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -565,18 +590,19 @@ export default function HomePage() {
 
       {/* Mobile Week Navigation Dots */}
       {currentView === 'week' && (
-        <div className="lg:hidden flex justify-center space-x-2 py-4 bg-white border-t border-gray-200">
+        <div className="lg:hidden flex justify-center space-x-3 py-4 bg-white border-t border-gray-200">
           {currentWeek.map((date, index) => {
-            const isToday = date.toDateString() === today.toDateString()
-            const isCurrent = currentWeek.indexOf(date) === 0
+            const isToday = date.toDateString() === new Date().toDateString()
+            const isCurrent = index === mobileCurrentDayIndex // Current mobile day
             return (
-              <div
+              <button
                 key={index}
+                onClick={() => goToDay(index)}
                 className={cn(
                   "w-3 h-3 rounded-full transition-colors",
-                  isToday ? "bg-blue-600" : isCurrent ? "bg-gray-400" : "bg-gray-300"
+                  isToday ? "bg-blue-600" : isCurrent ? "bg-gray-500" : "bg-gray-300"
                 )}
-                title={`${formatDate(date)} - ${isToday ? 'Today' : isCurrent ? 'Current' : 'Other day'}`}
+                title={`${formatDayName(date)} - ${formatDisplayDate(date)}${isToday ? ' (Today)' : ''}`}
               />
             )
           })}
